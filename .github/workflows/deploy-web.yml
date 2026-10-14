@@ -1,0 +1,47 @@
+name: Deploy web tool
+
+# Auto-deploys the hosted Poppy Check (web/) to Cloudflare Workers on every
+# push to `main` that touches the Worker or the code it bundles. Manual runs
+# via the Actions tab too.
+#
+# Requires two repo secrets (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN   token scoped "Edit Cloudflare Workers" from the
+#                          GeoSuite Cloudflare account (NOT a token pasted
+#                          anywhere; create a fresh, scoped one).
+#   CLOUDFLARE_ACCOUNT_ID  that account's id.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'src/**'
+      - 'package.json'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Don't run in forks (they won't have the secrets).
+    if: github.repository == 'TryGeoSuite/poppy-json'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      # Zero runtime dependencies: the Worker bundles only ../src/*.js, so
+      # there is nothing to install before the deploy.
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          command: deploy

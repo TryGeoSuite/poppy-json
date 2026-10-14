@@ -1,0 +1,60 @@
+{
+  "name": "@geosuite/poppy-json",
+  "version": "0.1.0",
+  "description": "Checker and generator for poppy.json, the /.well-known discovery file of the Personal Agent Protocol by Sierra and Meta. CLI, library and web page, zero dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Matteo Perino <matte97.p@gmail.com> (https://github.com/matte97p)",
+  "contributors": [
+    "Matteo Perino <matte97.p@gmail.com> (https://github.com/matte97p)",
+    "GeoSuite (https://trygeosuite.it)"
+  ],
+  "homepage": "https://poppy-check.geosuite.workers.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TryGeoSuite/poppy-json.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TryGeoSuite/poppy-json/issues"
+  },
+  "keywords": [
+    "poppy.json",
+    "poppy",
+    "personal-agent-protocol",
+    "ai-agents",
+    "personal-agent",
+    "well-known",
+    "oauth",
+    "rfc8414",
+    "mcp",
+    "openapi",
+    "geo",
+    "generative-engine-optimization"
+  ],
+  "bin": {
+    "poppy-json": "bin/cli.js",
+    "geosuite-poppy-json": "bin/cli.js"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./check": "./src/check.js",
+    "./generate": "./src/generate.js"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    "assets/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "node --check src/index.js && node --check src/check.js && node --check src/generate.js && node --check src/messages.js && node --check src/input.js && node --check bin/cli.js && node --check web/worker.js && node --check web/page.js && node --check web/theme.js && node --check test/check.test.js && node --check test/generate.test.js && node --check test/cli.test.js && node --check test/web.test.js",
+    "test": "node --test test/*.test.js",
+    "coverage": "node --experimental-test-coverage --test test/*.test.js"
+  }
+}

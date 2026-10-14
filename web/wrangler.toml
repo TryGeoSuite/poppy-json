@@ -1,0 +1,29 @@
+name = "poppy-check"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+# No nodejs_compat needed: the Worker imports only ../src/check.js, ../src/input.js,
+# ../src/generate.js and ../src/messages.js, which use no `node:*` module.
+
+# Bundle the PNGs (OG share image 1200x630, GeoSuite's favicon and touch icon)
+# as ArrayBuffers the Worker serves itself: no external host, CSP-safe.
+rules = [
+  { type = "Data", globs = ["**/*.png"], fallthrough = false },
+  # The AI engines' logos in the closing panel, copied from TryGeoSuite/geo-toolkit/logos.
+  { type = "Text", globs = ["**/*.svg"], fallthrough = false }
+]
+
+# Server-side usage counts via Analytics Engine: no cookies, no client tracking.
+# One data point per /api/check (checked host + verdict). The dataset is created
+# automatically on the first write from the Worker; query it via the Analytics
+# Engine SQL API. worker.js guards on `env.AE`, so this is safe to toggle.
+[[analytics_engine_datasets]]
+binding = "AE"
+dataset = "poppy_check"
+
+# Warning: deploy to your PERSONAL / GeoSuite Cloudflare account, NOT the
+# work/Cato one. `wrangler deploy` targets whichever account you're logged into
+# (check `wrangler whoami`) or CLOUDFLARE_ACCOUNT_ID. Pin it to be safe:
+# account_id = "<your-personal-cloudflare-account-id>"
+#
+# Otherwise `wrangler deploy` publishes it to
+#   https://poppy-check.<your-subdomain>.workers.dev
