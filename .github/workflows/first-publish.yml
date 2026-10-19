@@ -1,0 +1,32 @@
+name: First npm publish (one-off)
+
+# The package did not exist on npm yet, and trusted publishing (OIDC, see
+# publish.yml) can only be configured on a package that exists. This runs once,
+# by hand, with the org NPM_TOKEN, and is removed right after.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'TryGeoSuite/poppy-json'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm run lint
+      - run: node --test test/*.js
+      - name: Publish
+        run: |
+          PKG="$(node -p "require('./package.json').name")@$(node -p "require('./package.json').version")"
+          if npm view "$PKG" version >/dev/null 2>&1; then echo "::notice::$PKG already on npm"; exit 0; fi
+          npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
