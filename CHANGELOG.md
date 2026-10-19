@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- The checker now gives GeoSuite's audit verdict on every case of
+  `test/fixtures/golden.json`, a fixture GeoSuite runs too
+  (`backend/tests/fixtures/poppy_json_golden.json`):
+  - redirects are followed by hand, and `not_https` flags any http hop, not
+    only the last address;
+  - issuer metadata that answer but are not JSON (an HTML page, over 256 KB)
+    are `issuer_metadata_invalid`, as before; GeoSuite now says the same
+    instead of `issuer_metadata_unreachable`;
+  - a field counts as present when the audit counts it: `[]`, `{}` and `0` are
+    missing (an organization name `[]` was accepted);
+  - the 256 KB cap counts bytes, not characters;
+  - `status` is `null`, not `0`, when no HTTP answer came back.
+
 ## 0.1.0 (2026-10-14)
 
 Initial release, for draft 0.1 of the
