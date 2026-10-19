@@ -15,6 +15,9 @@ Thanks for your interest in improving `@geosuite/poppy-json`.
 - `src/check.js` mirrors TryGeoSuite/geo-toolkit's `poppy.js` and GeoSuite's
   audit. A change to a check or an issue code starts there, then lands here
   unchanged, so the three tools never disagree about the same site.
+  `test/fixtures/golden.json` is the contract: GeoSuite runs a byte copy of it
+  (`backend/tests/fixtures/poppy_json_golden.json`), so a rule change comes
+  with a new case there and the fixture copied to GeoSuite in the same round.
 - `generatePoppy()` in `src/generate.js` must stay self-contained (no imports,
   no module-level helpers): the web page ships its source to the browser.
   `test/generate.test.js` checks both that and that its output passes the

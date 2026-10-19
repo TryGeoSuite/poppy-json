@@ -53,7 +53,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "lint": "node --check src/index.js && node --check src/check.js && node --check src/generate.js && node --check src/messages.js && node --check src/input.js && node --check bin/cli.js && node --check web/worker.js && node --check web/page.js && node --check web/theme.js && node --check test/check.test.js && node --check test/generate.test.js && node --check test/cli.test.js && node --check test/web.test.js",
+    "lint": "node --check src/index.js && node --check src/check.js && node --check src/generate.js && node --check src/messages.js && node --check src/input.js && node --check bin/cli.js && node --check web/worker.js && node --check web/page.js && node --check web/theme.js && node --check test/check.test.js && node --check test/generate.test.js && node --check test/cli.test.js && node --check test/web.test.js && node --check test/golden.test.js",
     "test": "node --test test/*.test.js",
     "coverage": "node --experimental-test-coverage --test test/*.test.js"
   }
