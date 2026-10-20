@@ -1,6 +1,6 @@
 {
   "name": "@geosuite/poppy-json",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Checker and generator for poppy.json, the /.well-known discovery file of the Personal Agent Protocol by Sierra and Meta. CLI, library and web page, zero dependencies.",
   "type": "module",
   "license": "MIT",
