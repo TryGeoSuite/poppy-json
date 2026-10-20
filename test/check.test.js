@@ -7,7 +7,10 @@ import { ISSUE_TEXT, explainIssue } from '../src/messages.js';
 
 const ISSUER = 'https://auth.acme.it';
 const METADATA_URL = ISSUER + '/.well-known/oauth-authorization-server';
-const GOOD_METADATA = { issuer: ISSUER, poppy_domains: ['acme.it'] };
+// What a real sign-in server publishes: the two Poppy fields plus the endpoints
+// the spec makes required (token and revocation always, authorization for direct).
+const ENDPOINTS = { token_endpoint: ISSUER + '/token', revocation_endpoint: ISSUER + '/revoke', authorization_endpoint: ISSUER + '/authorize' };
+const GOOD_METADATA = { issuer: ISSUER, poppy_domains: ['acme.it'], ...ENDPOINTS };
 
 const doc = (over = {}) => ({
   protocol_version: '0.1',
@@ -66,9 +69,16 @@ test('issuer metadata: the path goes after the well-known segment', () => {
   assert.equal(issuerMetadataUrl(ISSUER), METADATA_URL);
 });
 
+test('issuer metadata must have the endpoints the spec makes required, https only', () => {
+  const two = { issuer: ISSUER, poppy_domains: ['acme.it'] };
+  assert.deepEqual(checkIssuerMetadata(two, ISSUER, 'acme.it'), ['missing_token_endpoint', 'missing_revocation_endpoint']);
+  assert.deepEqual(checkIssuerMetadata({ ...two, token_endpoint: ISSUER + '/token', revocation_endpoint: ISSUER + '/revoke' }, ISSUER, 'acme.it', ['direct', 'device']), ['missing_authorization_endpoint', 'missing_device_authorization_endpoint']);
+  assert.deepEqual(checkIssuerMetadata({ ...GOOD_METADATA, revocation_endpoint: 'http://auth.acme.it/revoke' }, ISSUER, 'acme.it', ['direct']), ['missing_revocation_endpoint']);
+});
+
 test('issuer metadata must name the issuer and list the domain', () => {
   assert.deepEqual(checkIssuerMetadata(GOOD_METADATA, ISSUER, 'www.acme.it'), []);
-  assert.deepEqual(checkIssuerMetadata({ issuer: 'https://x.it', poppy_domains: [] }, ISSUER, 'acme.it'), ['issuer_mismatch', 'domain_not_in_issuer']);
+  assert.deepEqual(checkIssuerMetadata({ issuer: 'https://x.it', poppy_domains: [], ...ENDPOINTS }, ISSUER, 'acme.it'), ['issuer_mismatch', 'domain_not_in_issuer']);
   assert.deepEqual(checkIssuerMetadata('nope', ISSUER, 'acme.it'), ['issuer_metadata_invalid']);
 });
 
@@ -141,7 +151,7 @@ test('a missing protocol version is flagged', () => {
 });
 
 test('probe: issuer metadata that list another domain are flagged', async () => {
-  const out = await probePoppy('acme.it', fakeFetch({ 'https://acme.it/.well-known/poppy.json': { body: doc() }, [METADATA_URL]: { body: { issuer: ISSUER, poppy_domains: ['other.it'] } } }));
+  const out = await probePoppy('acme.it', fakeFetch({ 'https://acme.it/.well-known/poppy.json': { body: doc() }, [METADATA_URL]: { body: { issuer: ISSUER, poppy_domains: ['other.it'], ...ENDPOINTS } } }));
   assert.equal(out.valid, false);
   assert.deepEqual(out.issues, ['domain_not_in_issuer']);
 });
@@ -151,7 +161,7 @@ test('probe: an issuer with a path is looked up after the well-known segment', a
   const seen = [];
   const routes = {
     'https://acme.it/.well-known/poppy.json': { body: doc({ auth: { issuer, direct: {} } }) },
-    'https://acme.it/.well-known/oauth-authorization-server/auth': { body: { issuer, poppy_domains: ['acme.it'] } },
+    'https://acme.it/.well-known/oauth-authorization-server/auth': { body: { issuer, poppy_domains: ['acme.it'], ...ENDPOINTS } },
   };
   const f = fakeFetch(routes);
   const out = await probePoppy('acme.it', async (url, init) => {

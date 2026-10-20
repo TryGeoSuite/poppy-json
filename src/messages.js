@@ -22,6 +22,10 @@ export const ISSUE_TEXT = {
     not_an_object: 'the file is not a JSON object',
     not_https: 'the file goes through a non-https address',
     unsupported_major_version: 'the protocol version is not supported',
+    missing_token_endpoint: 'the sign-in server does not say where agents get their tokens (an https token_endpoint)',
+    missing_revocation_endpoint: 'the sign-in server does not say where access is revoked (an https revocation_endpoint)',
+    missing_authorization_endpoint: 'direct sign-in is declared, but the sign-in server has no https authorization_endpoint',
+    missing_device_authorization_endpoint: 'device sign-in is declared, but the sign-in server has no https device_authorization_endpoint',
   },
   it: {
     domain_mismatch: 'il dominio dichiarato non è quello del sito',
@@ -39,6 +43,10 @@ export const ISSUE_TEXT = {
     not_an_object: 'il file non è un oggetto JSON',
     not_https: 'il file passa per un indirizzo non https',
     unsupported_major_version: 'la versione del protocollo non è supportata',
+    missing_token_endpoint: 'il server di login non dice dove gli agenti ottengono i token (manca un token_endpoint https)',
+    missing_revocation_endpoint: 'il server di login non dice dove si revoca l’accesso (manca un revocation_endpoint https)',
+    missing_authorization_endpoint: 'l’accesso direct è dichiarato, ma il server di login non ha un authorization_endpoint https',
+    missing_device_authorization_endpoint: 'l’accesso device è dichiarato, ma il server di login non ha un device_authorization_endpoint https',
   },
 };
 

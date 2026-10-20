@@ -147,10 +147,10 @@ The generated snippet looks like this, and belongs in the issuer's
 }
 ```
 
-The spec also expects that metadata to list `token_endpoint` and
+The spec also requires that metadata to list an https `token_endpoint` and
 `revocation_endpoint`, plus `authorization_endpoint` for direct sign-in and
 `device_authorization_endpoint` for device sign-in. Your server has those
-already; `init` reminds you which ones apply.
+already; `init` reminds you which ones apply, and `check` fails without them.
 
 ## Issue codes
 
@@ -174,6 +174,10 @@ The checker returns the same codes as GeoSuite's audit and the
 | `issuer_metadata_invalid` | the sign-in server metadata cannot be read |
 | `issuer_mismatch` | the sign-in server declares a different issuer |
 | `domain_not_in_issuer` | the sign-in server does not list this domain in `poppy_domains` |
+| `missing_token_endpoint` | the sign-in server does not say where agents get their tokens (an https `token_endpoint`) |
+| `missing_revocation_endpoint` | the sign-in server does not say where access is revoked (an https `revocation_endpoint`) |
+| `missing_authorization_endpoint` | direct sign-in is declared, but the sign-in server has no https `authorization_endpoint` |
+| `missing_device_authorization_endpoint` | device sign-in is declared, but the sign-in server has no https `device_authorization_endpoint` |
 
 A missing file is not an issue: `check` reports it as "not published".
 

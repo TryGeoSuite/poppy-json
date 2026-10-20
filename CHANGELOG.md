@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- The issuer metadata must list the endpoints the spec makes required, all
+  https: `token_endpoint` and `revocation_endpoint` always,
+  `authorization_endpoint` with `auth.direct`, `device_authorization_endpoint`
+  with `auth.device`. Four new codes, `missing_token_endpoint`,
+  `missing_revocation_endpoint`, `missing_authorization_endpoint` and
+  `missing_device_authorization_endpoint`, also in the golden fixture.
+  Before, a file whose sign-in server lacked them was reported valid.
+
 ### Changed
 
 - The checker now gives GeoSuite's audit verdict on every case of

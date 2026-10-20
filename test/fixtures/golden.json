@@ -15,7 +15,11 @@
     "issuer_metadata_unreachable",
     "issuer_metadata_invalid",
     "issuer_mismatch",
-    "domain_not_in_issuer"
+    "domain_not_in_issuer",
+    "missing_token_endpoint",
+    "missing_revocation_endpoint",
+    "missing_authorization_endpoint",
+    "missing_device_authorization_endpoint"
   ],
   "validate_cases": [
     {
@@ -951,7 +955,11 @@
         "issuer": "https://auth.acme.it",
         "poppy_domains": [
           "acme.it"
-        ]
+        ],
+        "token_endpoint": "https://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke",
+        "authorization_endpoint": "https://auth.acme.it/authorize",
+        "device_authorization_endpoint": "https://auth.acme.it/device"
       },
       "issuer": "https://auth.acme.it",
       "domain": "www.acme.it",
@@ -961,7 +969,11 @@
       "name": "metadata must name the issuer and list the domain",
       "metadata": {
         "issuer": "https://x.it",
-        "poppy_domains": []
+        "poppy_domains": [],
+        "token_endpoint": "https://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke",
+        "authorization_endpoint": "https://auth.acme.it/authorize",
+        "device_authorization_endpoint": "https://auth.acme.it/device"
       },
       "issuer": "https://auth.acme.it",
       "domain": "acme.it",
@@ -976,7 +988,11 @@
         "issuer": "https://auth.acme.it",
         "poppy_domains": [
           "WWW.acme.it"
-        ]
+        ],
+        "token_endpoint": "https://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke",
+        "authorization_endpoint": "https://auth.acme.it/authorize",
+        "device_authorization_endpoint": "https://auth.acme.it/device"
       },
       "issuer": "https://auth.acme.it",
       "domain": "acme.it",
@@ -986,7 +1002,11 @@
       "name": "poppy_domains must be a list",
       "metadata": {
         "issuer": "https://auth.acme.it",
-        "poppy_domains": "acme.it"
+        "poppy_domains": "acme.it",
+        "token_endpoint": "https://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke",
+        "authorization_endpoint": "https://auth.acme.it/authorize",
+        "device_authorization_endpoint": "https://auth.acme.it/device"
       },
       "issuer": "https://auth.acme.it",
       "domain": "acme.it",
@@ -1011,6 +1031,96 @@
       "expected": [
         "issuer_metadata_invalid"
       ]
+    },
+    {
+      "name": "metadata need https token and revocation endpoints",
+      "metadata": {
+        "issuer": "https://auth.acme.it",
+        "poppy_domains": [
+          "acme.it"
+        ]
+      },
+      "issuer": "https://auth.acme.it",
+      "domain": "acme.it",
+      "sign_in_types": [],
+      "expected": [
+        "missing_token_endpoint",
+        "missing_revocation_endpoint"
+      ]
+    },
+    {
+      "name": "an http token endpoint does not count",
+      "metadata": {
+        "issuer": "https://auth.acme.it",
+        "poppy_domains": [
+          "acme.it"
+        ],
+        "token_endpoint": "http://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke"
+      },
+      "issuer": "https://auth.acme.it",
+      "domain": "acme.it",
+      "sign_in_types": [],
+      "expected": [
+        "missing_token_endpoint"
+      ]
+    },
+    {
+      "name": "direct sign-in needs an authorization endpoint",
+      "metadata": {
+        "issuer": "https://auth.acme.it",
+        "poppy_domains": [
+          "acme.it"
+        ],
+        "token_endpoint": "https://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke"
+      },
+      "issuer": "https://auth.acme.it",
+      "domain": "acme.it",
+      "sign_in_types": [
+        "direct"
+      ],
+      "expected": [
+        "missing_authorization_endpoint"
+      ]
+    },
+    {
+      "name": "device sign-in needs a device authorization endpoint",
+      "metadata": {
+        "issuer": "https://auth.acme.it",
+        "poppy_domains": [
+          "acme.it"
+        ],
+        "token_endpoint": "https://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke",
+        "authorization_endpoint": "https://auth.acme.it/authorize"
+      },
+      "issuer": "https://auth.acme.it",
+      "domain": "acme.it",
+      "sign_in_types": [
+        "direct",
+        "device"
+      ],
+      "expected": [
+        "missing_device_authorization_endpoint"
+      ]
+    },
+    {
+      "name": "mediated sign-in needs only the token and revocation endpoints",
+      "metadata": {
+        "issuer": "https://auth.acme.it",
+        "poppy_domains": [
+          "acme.it"
+        ],
+        "token_endpoint": "https://auth.acme.it/token",
+        "revocation_endpoint": "https://auth.acme.it/revoke"
+      },
+      "issuer": "https://auth.acme.it",
+      "domain": "acme.it",
+      "sign_in_types": [
+        "mediated"
+      ],
+      "expected": []
     }
   ],
   "metadata_url_cases": [
@@ -1074,7 +1184,11 @@
             "issuer": "https://auth.acme.it",
             "poppy_domains": [
               "acme.it"
-            ]
+            ],
+            "token_endpoint": "https://auth.acme.it/token",
+            "revocation_endpoint": "https://auth.acme.it/revoke",
+            "authorization_endpoint": "https://auth.acme.it/authorize",
+            "device_authorization_endpoint": "https://auth.acme.it/device"
           }
         }
       },
@@ -1164,7 +1278,11 @@
             "issuer": "https://auth.acme.it",
             "poppy_domains": [
               "acme.it"
-            ]
+            ],
+            "token_endpoint": "https://auth.acme.it/token",
+            "revocation_endpoint": "https://auth.acme.it/revoke",
+            "authorization_endpoint": "https://auth.acme.it/authorize",
+            "device_authorization_endpoint": "https://auth.acme.it/device"
           }
         }
       },
@@ -1224,7 +1342,11 @@
             "issuer": "https://auth.acme.it",
             "poppy_domains": [
               "acme.it"
-            ]
+            ],
+            "token_endpoint": "https://auth.acme.it/token",
+            "revocation_endpoint": "https://auth.acme.it/revoke",
+            "authorization_endpoint": "https://auth.acme.it/authorize",
+            "device_authorization_endpoint": "https://auth.acme.it/device"
           }
         }
       },
@@ -1480,7 +1602,11 @@
             "issuer": "https://auth.acme.it",
             "poppy_domains": [
               "other.it"
-            ]
+            ],
+            "token_endpoint": "https://auth.acme.it/token",
+            "revocation_endpoint": "https://auth.acme.it/revoke",
+            "authorization_endpoint": "https://auth.acme.it/authorize",
+            "device_authorization_endpoint": "https://auth.acme.it/device"
           }
         }
       },
@@ -1572,6 +1698,64 @@
         "present": false,
         "valid": false,
         "issues": [],
+        "status": 200,
+        "error": null
+      }
+    },
+    {
+      "name": "metadata without the required endpoints make the file invalid",
+      "host": "acme.it",
+      "routes": {
+        "https://acme.it/.well-known/poppy.json": {
+          "json": {
+            "protocol_version": "0.1",
+            "organization": {
+              "name": "Acme",
+              "domain": "acme.it"
+            },
+            "auth": {
+              "issuer": "https://auth.acme.it",
+              "direct": {
+                "scopes": [
+                  "poppy:read",
+                  "poppy:write"
+                ]
+              }
+            },
+            "agent": {
+              "protocols": [
+                {
+                  "type": "poppy",
+                  "endpoint": "https://acme.it/poppy"
+                }
+              ]
+            },
+            "apis": [
+              {
+                "type": "mcp",
+                "url": "https://acme.it/mcp",
+                "description": "Ordini"
+              }
+            ]
+          }
+        },
+        "https://auth.acme.it/.well-known/oauth-authorization-server": {
+          "json": {
+            "issuer": "https://auth.acme.it",
+            "poppy_domains": [
+              "acme.it"
+            ]
+          }
+        }
+      },
+      "expected": {
+        "present": true,
+        "valid": false,
+        "issues": [
+          "missing_token_endpoint",
+          "missing_revocation_endpoint",
+          "missing_authorization_endpoint"
+        ],
         "status": 200,
         "error": null
       }
