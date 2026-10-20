@@ -49,6 +49,10 @@ export const ISSUE_CODES = [
   'issuer_metadata_invalid',
   'issuer_mismatch',
   'domain_not_in_issuer',
+  'missing_token_endpoint',
+  'missing_revocation_endpoint',
+  'missing_authorization_endpoint',
+  'missing_device_authorization_endpoint',
 ];
 
 const bareHost = (host) => {
@@ -154,12 +158,20 @@ export function validatePoppyDocument(document, requestedHost) {
 
 // What the spec asks an agent to check before trusting the tokens: the
 // metadata's `issuer` equals auth.issuer, and `poppy_domains` lists the domain.
-export function checkIssuerMetadata(metadata, issuer, domain) {
+// Then the endpoints the spec makes required (section 3.2), all https: the
+// token and revocation endpoints always, the authorization endpoint when
+// auth.direct is declared, the device authorization endpoint with auth.device.
+// Without them an agent finds the company and cannot sign in.
+export function checkIssuerMetadata(metadata, issuer, domain, signInTypes = []) {
   if (!isObject(metadata)) return ['issuer_metadata_invalid'];
   const issues = [];
   if (metadata.issuer !== issuer) issues.push('issuer_mismatch');
   const domains = metadata.poppy_domains;
   if (!Array.isArray(domains) || !domains.some((d) => bareHost(d) === bareHost(domain))) issues.push('domain_not_in_issuer');
+  if (!isHttpsUrl(metadata.token_endpoint)) issues.push('missing_token_endpoint');
+  if (!isHttpsUrl(metadata.revocation_endpoint)) issues.push('missing_revocation_endpoint');
+  if (signInTypes.includes('direct') && !isHttpsUrl(metadata.authorization_endpoint)) issues.push('missing_authorization_endpoint');
+  if (signInTypes.includes('device') && !isHttpsUrl(metadata.device_authorization_endpoint)) issues.push('missing_device_authorization_endpoint');
   return issues;
 }
 
@@ -223,7 +235,7 @@ export async function probePoppy(host, fetchImpl = fetch, { userAgent = UA } = {
     // No answer or an HTTP error: unreachable. An answer that is not a JSON
     // object (an HTML page, a file over 256 KB): invalid.
     if (meta.status === null || meta.status >= 400) issues.push('issuer_metadata_unreachable');
-    else issues.push(...checkIssuerMetadata(meta.json, checked.issuer, checked.organizationDomain));
+    else issues.push(...checkIssuerMetadata(meta.json, checked.issuer, checked.organizationDomain, checked.signInTypes));
   }
 
   return { ...block, ...checked, issues, valid: !issues.length };

@@ -79,7 +79,11 @@ test('the issuer metadata snippet passes checkIssuerMetadata, at the RFC 8414 ad
   for (const issuer of ['https://auth.acme.com', 'https://acme.com/auth/']) {
     const r = generatePoppy({ ...BASE, issuer, signIn: ['direct', 'device'], agentEndpoint: 'https://acme.com/c' });
     assert.equal(r.metadata.url, issuerMetadataUrl(issuer));
-    assert.deepEqual(checkIssuerMetadata(r.metadata.document, r.document.auth.issuer, r.document.organization.domain), []);
+    // The snippet holds the two Poppy fields; the server adds them to the
+    // metadata it already publishes, endpoints included.
+    const served = { ...Object.fromEntries(r.metadata.requiredEndpoints.map((k) => [k, 'https://auth.acme.com/' + k])), ...r.metadata.document };
+    assert.deepEqual(checkIssuerMetadata(served, r.document.auth.issuer, r.document.organization.domain, ['direct', 'device']), []);
+    assert.deepEqual(checkIssuerMetadata(r.metadata.document, r.document.auth.issuer, r.document.organization.domain, ['direct', 'device']), r.metadata.requiredEndpoints.map((k) => 'missing_' + k));
     assert.deepEqual(r.metadata.requiredEndpoints, ['token_endpoint', 'revocation_endpoint', 'authorization_endpoint', 'device_authorization_endpoint']);
   }
   const mediatedOnly = generatePoppy({ ...BASE, signIn: ['mediated'], mediatedEndpoint: 'https://auth.acme.com/in', agentEndpoint: 'https://acme.com/c' });
@@ -88,7 +92,9 @@ test('the issuer metadata snippet passes checkIssuerMetadata, at the RFC 8414 ad
 
 test('round trip: a site serving the generated files probes as valid', async () => {
   const r = generatePoppy(FULL);
-  const routes = { ['https://acme.com' + POPPY_PATH]: r.json, [r.metadata.url]: r.metadata.json };
+  // The sign-in server publishes the snippet's fields next to its endpoints.
+  const served = JSON.stringify({ ...Object.fromEntries(r.metadata.requiredEndpoints.map((k) => [k, 'https://auth.acme.com/' + k])), ...r.metadata.document });
+  const routes = { ['https://acme.com' + POPPY_PATH]: r.json, [r.metadata.url]: served };
   const fetchImpl = async (url) => ({ status: routes[url] ? 200 : 404, url, text: async () => routes[url] || '' });
   const out = await probePoppy('acme.com', fetchImpl);
   assert.equal(out.present, true);

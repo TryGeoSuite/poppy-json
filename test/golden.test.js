@@ -55,7 +55,7 @@ for (const c of golden.validate_cases) {
 
 for (const c of golden.metadata_cases) {
   test(`golden metadata: ${c.name}`, () => {
-    assert.deepEqual(checkIssuerMetadata(c.metadata, c.issuer, c.domain), c.expected);
+    assert.deepEqual(checkIssuerMetadata(c.metadata, c.issuer, c.domain, c.sign_in_types || []), c.expected);
   });
 }
 
