@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed (breaking)
+
+- Aligned to draft 0.3 of the Personal Agent Protocol. Only `protocol_version`
+  `0.3` is accepted: before 1.0 every minor version can break the one before,
+  and an agent uses only the versions it knows. `unsupported_major_version` is
+  now `unsupported_version`.
+- The sign-in server is discovered the 0.3 way: the domain's protected
+  resource metadata (RFC 9728, `/.well-known/oauth-protected-resource`) names
+  the issuer, and `auth.issuer` is needed only when it names more than one. A
+  404 there means a company with no sign-in, which is valid. The issuer's
+  metadata must list the domain in `protected_resources` (it was
+  `poppy_domains`) and have `grant_types_supported` with `refresh_token`.
+  Direct and Device Sign-In come from those grant types, no longer from
+  `auth.direct` and `auth.device`; Mediated Sign-In from the
+  `mediated-sign-in` extension.
+- `organization.domain` is compared with the host that served the file after
+  the redirects, ignoring case only (a leading `www.` is no longer dropped),
+  and a redirect that ends off `/.well-known/poppy.json` is flagged.
+- New codes: `invalid_auth_issuer`, `sign_in_conflict`, `wrong_final_path`,
+  `protected_resource_unreachable`, `protected_resource_invalid`,
+  `issuer_not_listed`, `sign_in_without_issuer`, `invalid_grant_types`.
+- `checkIssuerMetadata(metadata, issuer, domain)` no longer takes the sign-in
+  types; new exports `resolveIssuer` and `signInTypesFrom`.
+- The generator writes 0.3 files: the issuer is optional, `www.` is kept,
+  `poppy:read`/`poppy:write` are gone (each company defines its scopes), and
+  with an issuer it also builds the protected resource metadata and the
+  issuer's snippet with `protected_resources` and `grant_types_supported`.
+  `--mediated <url>` is gone: mediated sign-in has no endpoint of its own in
+  0.3, and needs `--scopes`.
+
 ### Added
 
 - The issuer metadata must list the endpoints the spec makes required, all

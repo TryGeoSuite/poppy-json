@@ -2,14 +2,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generatePoppy } from '../src/generate.js';
-import { validatePoppyDocument, checkIssuerMetadata, issuerMetadataUrl, probePoppy, POPPY_PATH } from '../src/check.js';
+import { validatePoppyDocument, checkIssuerMetadata, issuerMetadataUrl, probePoppy, resolveIssuer, POPPY_PATH, PROTECTED_RESOURCE_PATH } from '../src/check.js';
 import { INPUT_ERROR_TEXT } from '../src/messages.js';
 
 const BASE = { name: 'Acme', domain: 'acme.com', issuer: 'https://auth.acme.com' };
 const FULL = {
   ...BASE,
   signIn: ['direct', 'device', 'mediated'],
-  mediatedEndpoint: 'https://auth.acme.com/poppy/sign-in',
+  scopes: ['orders:read', 'addresses'],
   agentEndpoint: 'https://api.acme.com/poppy/conversations',
   apis: [
     { type: 'openapi', url: 'https://api.acme.com/openapi.json', description: 'Orders and returns' },
@@ -32,24 +32,34 @@ test('a minimal document (one MCP server) is valid for its domain', () => {
   const out = validatePoppyDocument(document, 'acme.com');
   assert.deepEqual(out.issues, []);
   assert.equal(out.valid, true);
-  assert.equal(document.protocol_version, '0.1');
-  assert.deepEqual(out.signInTypes, ['direct']);
-  assert.deepEqual(document.auth.direct.scopes, ['poppy:read', 'poppy:write']);
+  assert.equal(document.protocol_version, '0.3');
+  assert.deepEqual(document.auth, { issuer: BASE.issuer });
+  assert.equal(document.extensions, undefined);
 });
 
 test('a full document is valid and reports every channel', () => {
   const { document } = generatePoppy(FULL);
-  const out = validatePoppyDocument(document, 'www.acme.com');
+  const out = validatePoppyDocument(document, 'acme.com');
   assert.equal(out.valid, true, out.issues.join(','));
-  assert.deepEqual(out.signInTypes, ['direct', 'device', 'mediated']);
+  assert.deepEqual(out.signInTypes, ['mediated']);
   assert.deepEqual(out.apiTypes, ['openapi', 'mcp']);
   assert.equal(out.hasConversation, true);
   assert.equal(out.hasBrowserSession, true);
-  assert.equal(document.auth.mediated.endpoint, FULL.mediatedEndpoint);
-  assert.deepEqual(document.auth.mediated.fields.map((f) => f.secret), [false, true]);
+  const mediated = document.extensions['mediated-sign-in'];
+  assert.equal(mediated.version, '1');
+  assert.deepEqual(mediated.fields.map((f) => f.secret), [false, true]);
+  assert.deepEqual(mediated.scopes, ['orders:read', 'addresses']);
   assert.equal(document.apis[1].description, 'Acme MCP server');
-  assert.equal(document.apis[1].resource, 'https://mcp.acme.com/mcp');
-  assert.equal(document.apis[0].resource, undefined);
+  assert.equal(document.apis[1].resource, undefined);
+});
+
+test('without an issuer the file has no auth and no metadata, and sign-in is ignored', () => {
+  const r = generatePoppy({ name: 'Acme', domain: 'acme.com', signIn: ['mediated'], agentEndpoint: 'https://acme.com/c' });
+  assert.equal(r.document.auth, undefined);
+  assert.equal(r.document.extensions, undefined);
+  assert.equal(r.protectedResource, null);
+  assert.equal(r.metadata, null);
+  assert.equal(validatePoppyDocument(r.document, 'acme.com').valid, true);
 });
 
 test('every single channel on its own makes a valid document', () => {
@@ -63,43 +73,58 @@ test('every single channel on its own makes a valid document', () => {
   }
 });
 
-test('the domain is reduced to the bare host', () => {
-  const { document } = generatePoppy({ ...BASE, domain: 'https://WWW.Acme.com/about', agentEndpoint: 'https://acme.com/c' });
-  assert.equal(document.organization.domain, 'acme.com');
+test('the domain is the host, lowercase, www kept: agents compare it with the host that serves the file', () => {
+  const { document } = generatePoppy({ ...BASE, domain: 'https://WWW.Acme.com./about', agentEndpoint: 'https://acme.com/c' });
+  assert.equal(document.organization.domain, 'www.acme.com');
 });
 
 test('the json text is the document, pretty-printed with a final newline', () => {
   const r = generatePoppy({ ...BASE, agentEndpoint: 'https://acme.com/c' });
   assert.deepEqual(JSON.parse(r.json), r.document);
   assert.ok(r.json.endsWith('}\n'));
-  assert.ok(r.json.startsWith('{\n  "protocol_version": "0.1",'));
+  assert.ok(r.json.startsWith('{\n  "protocol_version": "0.3",'));
 });
 
-test('the issuer metadata snippet passes checkIssuerMetadata, at the RFC 8414 address', () => {
+test('the two metadata documents pass discovery and checkIssuerMetadata, at their addresses', () => {
   for (const issuer of ['https://auth.acme.com', 'https://acme.com/auth/']) {
     const r = generatePoppy({ ...BASE, issuer, signIn: ['direct', 'device'], agentEndpoint: 'https://acme.com/c' });
+    const domain = r.document.organization.domain;
+    assert.equal(r.protectedResource.url, 'https://' + domain + PROTECTED_RESOURCE_PATH);
+    assert.deepEqual(resolveIssuer(r.protectedResource.document, domain, r.document.auth.issuer, false), { issuer, issues: [] });
     assert.equal(r.metadata.url, issuerMetadataUrl(issuer));
-    // The snippet holds the two Poppy fields; the server adds them to the
+    assert.deepEqual(r.metadata.document.grant_types_supported, ['refresh_token', 'authorization_code', 'urn:ietf:params:oauth:grant-type:device_code']);
+    // The snippet holds the Poppy fields; the server adds them to the
     // metadata it already publishes, endpoints included.
     const served = { ...Object.fromEntries(r.metadata.requiredEndpoints.map((k) => [k, 'https://auth.acme.com/' + k])), ...r.metadata.document };
-    assert.deepEqual(checkIssuerMetadata(served, r.document.auth.issuer, r.document.organization.domain, ['direct', 'device']), []);
-    assert.deepEqual(checkIssuerMetadata(r.metadata.document, r.document.auth.issuer, r.document.organization.domain, ['direct', 'device']), r.metadata.requiredEndpoints.map((k) => 'missing_' + k));
+    assert.deepEqual(checkIssuerMetadata(served, issuer, domain), []);
+    assert.deepEqual(checkIssuerMetadata(r.metadata.document, issuer, domain), r.metadata.requiredEndpoints.map((k) => 'missing_' + k));
     assert.deepEqual(r.metadata.requiredEndpoints, ['token_endpoint', 'revocation_endpoint', 'authorization_endpoint', 'device_authorization_endpoint']);
   }
-  const mediatedOnly = generatePoppy({ ...BASE, signIn: ['mediated'], mediatedEndpoint: 'https://auth.acme.com/in', agentEndpoint: 'https://acme.com/c' });
+  const mediatedOnly = generatePoppy({ ...BASE, signIn: ['mediated'], scopes: ['orders:read'], agentEndpoint: 'https://acme.com/c' });
   assert.deepEqual(mediatedOnly.metadata.requiredEndpoints, ['token_endpoint', 'revocation_endpoint']);
+  assert.deepEqual(mediatedOnly.metadata.document.grant_types_supported, ['refresh_token', 'https://personalagentprotocol.org/grant/mediated-sign-in']);
+  assert.deepEqual(mediatedOnly.metadata.document.scopes_supported, ['orders:read']);
 });
 
 test('round trip: a site serving the generated files probes as valid', async () => {
   const r = generatePoppy(FULL);
   // The sign-in server publishes the snippet's fields next to its endpoints.
   const served = JSON.stringify({ ...Object.fromEntries(r.metadata.requiredEndpoints.map((k) => [k, 'https://auth.acme.com/' + k])), ...r.metadata.document });
-  const routes = { ['https://acme.com' + POPPY_PATH]: r.json, [r.metadata.url]: served };
+  const routes = { ['https://acme.com' + POPPY_PATH]: r.json, [r.protectedResource.url]: r.protectedResource.json, [r.metadata.url]: served };
   const fetchImpl = async (url) => ({ status: routes[url] ? 200 : 404, url, text: async () => routes[url] || '' });
   const out = await probePoppy('acme.com', fetchImpl);
   assert.equal(out.present, true);
   assert.deepEqual(out.issues, []);
   assert.equal(out.valid, true);
+  assert.deepEqual(out.signInTypes, ['direct', 'device', 'mediated']);
+});
+
+test('round trip without an issuer: no protected resource metadata, still valid', async () => {
+  const r = generatePoppy({ name: 'Acme', domain: 'acme.com', browserSessionEndpoint: 'https://acme.com/b' });
+  const fetchImpl = async (url) => (url === 'https://acme.com' + POPPY_PATH ? { status: 200, url, text: async () => r.json } : { status: 404, url, text: async () => '' });
+  const out = await probePoppy('acme.com', fetchImpl);
+  assert.equal(out.valid, true, out.issues.join(','));
+  assert.equal(out.issuer, null);
 });
 
 test('bad input fails with a code the messages explain', () => {
@@ -112,7 +137,7 @@ test('bad input fails with a code the messages explain', () => {
     [{ ...BASE, agentEndpoint: 'http://acme.com/c' }, 'invalid_url'],
     [{ ...BASE, signIn: [], agentEndpoint: 'https://acme.com/c' }, 'no_sign_in'],
     [{ ...BASE, signIn: ['password'], agentEndpoint: 'https://acme.com/c' }, 'unknown_sign_in'],
-    [{ ...BASE, signIn: ['mediated'], agentEndpoint: 'https://acme.com/c' }, 'missing_mediated_endpoint'],
+    [{ ...BASE, signIn: ['mediated'], agentEndpoint: 'https://acme.com/c' }, 'missing_mediated_scopes'],
     [{ ...BASE, apis: [{ type: 'graphql', url: 'https://acme.com/g' }] }, 'unknown_api_type'],
   ];
   for (const [input, expected] of cases) {

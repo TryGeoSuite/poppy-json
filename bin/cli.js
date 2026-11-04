@@ -4,7 +4,7 @@
 // Usage:
 //   poppy-json check <url> [--json]
 //   poppy-json validate <file> [--domain <host>] [--metadata-file <file>] [--json]
-//   poppy-json init --name <text> --domain <host> --issuer <https-url> [channels] [--out <file>] [--metadata]
+//   poppy-json init --name <text> --domain <host> [--issuer <https-url>] [channels] [--out <file>] [--metadata]
 //   poppy-json --help | --version
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -19,24 +19,29 @@ of the Personal Agent Protocol (${SPEC_URL})
 USAGE
   poppy-json check <url> [--json]
   poppy-json validate <file> [--domain <host>] [--metadata-file <file>] [--json]
-  poppy-json init --name <text> --domain <host> --issuer <https-url> [options]
+  poppy-json init --name <text> --domain <host> [--issuer <https-url>] [options]
 
 COMMANDS
   check <url>          Fetch https://<host>/.well-known/poppy.json and check it the
-                       way a personal agent would, issuer metadata included.
+                       way a personal agent would: the domain's protected
+                       resource metadata and the issuer's metadata included.
   validate <file>      Shape checks on a local poppy.json, no network.
                        --domain <host>         The host the file will be served on.
                                                Defaults to the file's own domain.
                        --metadata-file <file>  Also check the issuer's RFC 8414
-                                               metadata (issuer, poppy_domains).
-  init                 Print a poppy.json built from the options below. The
-                       snippet the OAuth issuer must publish goes to stderr.
+                                               metadata (issuer, protected_resources,
+                                               endpoints, grant types).
+  init                 Print a poppy.json built from the options below. With an
+                       issuer, the two OAuth metadata documents agents check go
+                       to stderr.
                        --name <text>           organization.name (required)
-                       --domain <host>         organization.domain (required)
-                       --issuer <https-url>    auth.issuer, the OAuth issuer (required)
+                       --domain <host>         organization.domain, the host that
+                                               serves the file (required)
+                       --issuer <https-url>    The OAuth issuer. Leave it out if
+                                               you offer no sign-in.
                        --sign-in <list>        direct,device,mediated. Default: direct
-                       --scopes <list>         Default: poppy:read,poppy:write
-                       --mediated <https-url>  Endpoint for mediated sign-in
+                       --scopes <list>         Scopes mediated sign-in can grant
+                                               (required with mediated)
                        --agent <https-url>     A "poppy" conversation endpoint
                        --mcp <https-url>       A remote MCP server (repeatable)
                        --mcp-description <text>
@@ -44,7 +49,7 @@ COMMANDS
                        --openapi-description <text>
                        --browser <https-url>   web.browser_session_endpoint
                        --out <file>            Write poppy.json to a file
-                       --metadata              Print only the issuer snippet
+                       --metadata              Print only the issuer's metadata
 
 OPTIONS
   --json               Machine-readable output (check, validate).
@@ -112,7 +117,7 @@ async function cmdCheck(args) {
   }
   const why = r.error === 'timeout' ? 'the site did not answer in time' : r.error ? 'the site could not be reached' : r.status ? `HTTP ${r.status}` : 'no JSON document';
   out(`poppy.json for ${host}: not published (${why})\n  ${r.url}\n`);
-  out('  The standard is new (draft 0.1, October 2026), so this is normal today.\n');
+  out('  The standard is new (draft 0.3, October 2026), so this is normal today.\n');
   out('  Create one: npx @geosuite/poppy-json init --help\n');
   return 1;
 }
@@ -166,7 +171,7 @@ async function cmdValidate(args) {
 }
 
 async function cmdInit(args) {
-  for (const k of ['name', 'domain', 'issuer', 'agent', 'browser', 'mediated', 'out', 'sign-in', 'scopes']) {
+  for (const k of ['name', 'domain', 'issuer', 'agent', 'browser', 'out', 'sign-in', 'scopes']) {
     if (args[k] === true) throw new UsageError(`--${k} needs a value`);
   }
   let result;
@@ -176,12 +181,15 @@ async function cmdInit(args) {
     if (!e.code) throw e;
     throw new UsageError(INPUT_ERROR_TEXT.en[e.code] || e.message);
   }
-  const { json, metadata } = result;
-  const snippet =
-    `\nThe sign-in server must serve this in its OAuth metadata (RFC 8414):\n  ${metadata.url}\n\n` +
-    metadata.json.replace(/^/gm, '  ').trimEnd() +
-    `\n\nIt must also list ${metadata.requiredEndpoints.join(', ')}.\n`;
+  const { json, protectedResource, metadata } = result;
+  const block = (what, doc) => `\n${what}:\n  ${doc.url}\n\n` + doc.json.replace(/^/gm, '  ').trimEnd() + '\n';
+  const snippet = metadata
+    ? block('The domain must serve this protected resource metadata (RFC 9728)', protectedResource) +
+      block('The sign-in server must serve this in its OAuth metadata (RFC 8414)', metadata) +
+      `\nIt must also list ${metadata.requiredEndpoints.join(', ')}.\n`
+    : '\nNo issuer: agents use the site signed out. Without /.well-known/oauth-protected-resource (a 404) they know there is no sign-in.\n';
   if (args.metadata) {
+    if (!metadata) throw new UsageError('--metadata needs --issuer: without one there is no issuer metadata');
     out(metadata.json);
     return 0;
   }

@@ -39,21 +39,19 @@ test('parseArgs: short flags, and a value flag left without a value', () => {
 });
 
 test('initInput: maps flags to the generator input', () => {
-  const input = initInput(parseArgs(['init', '--name', 'Acme', '--domain', 'acme.com', '--issuer', 'https://auth.acme.com', '--mcp', 'https://acme.com/mcp', '--mcp-description', 'Orders', '--openapi', 'https://acme.com/openapi.json', '--agent', 'https://acme.com/c', '--browser', 'https://acme.com/b', '--sign-in', 'direct,device', '--scopes', 'poppy:read']));
+  const input = initInput(parseArgs(['init', '--name', 'Acme', '--domain', 'acme.com', '--issuer', 'https://auth.acme.com', '--mcp', 'https://acme.com/mcp', '--mcp-description', 'Orders', '--openapi', 'https://acme.com/openapi.json', '--agent', 'https://acme.com/c', '--browser', 'https://acme.com/b', '--sign-in', 'direct,device', '--scopes', 'orders:read']));
   assert.deepEqual(input.apis, [
     { type: 'mcp', url: 'https://acme.com/mcp', description: 'Orders' },
     { type: 'openapi', url: 'https://acme.com/openapi.json', description: undefined },
   ]);
   assert.deepEqual(input.signIn, ['direct', 'device']);
-  assert.deepEqual(input.scopes, ['poppy:read']);
+  assert.deepEqual(input.scopes, ['orders:read']);
   assert.equal(input.agentEndpoint, 'https://acme.com/c');
   assert.equal(input.browserSessionEndpoint, 'https://acme.com/b');
 });
 
-test('initInput: --mediated alone adds mediated sign-in next to direct', () => {
-  const input = initInput(parseArgs(['init', '--mediated', 'https://auth.acme.com/in']));
-  assert.deepEqual(input.signIn, ['direct', 'mediated']);
-  assert.equal(input.mediatedEndpoint, 'https://auth.acme.com/in');
+test('initInput: no --sign-in leaves the default to the generator', () => {
+  assert.equal(initInput(parseArgs(['init'])).signIn, undefined);
 });
 
 test('targetHost: public hosts only', () => {
@@ -74,18 +72,27 @@ test('cli: --help exits 0, no command exits 2, --version prints the package vers
   assert.equal((await run(['frobnicate'])).code, 2);
 });
 
-test('cli init: prints a valid poppy.json, the issuer snippet on stderr', async () => {
+test('cli init: prints a valid poppy.json, the two metadata documents on stderr', async () => {
   const r = await run(['init', '--name', 'Acme', '--domain', 'acme.com', '--issuer', 'https://auth.acme.com', '--mcp', 'https://acme.com/mcp']);
   assert.equal(r.code, 0, r.stderr);
   const doc = JSON.parse(r.stdout);
   assert.equal(validatePoppyDocument(doc, 'acme.com').valid, true);
+  assert.match(r.stderr, /https:\/\/acme\.com\/\.well-known\/oauth-protected-resource/);
   assert.match(r.stderr, /https:\/\/auth\.acme\.com\/\.well-known\/oauth-authorization-server/);
-  assert.match(r.stderr, /"poppy_domains"/);
+  assert.match(r.stderr, /"protected_resources"/);
+});
+
+test('cli init without --issuer: a signed-out file, and --metadata is a usage error', async () => {
+  const r = await run(['init', '--name', 'Acme', '--domain', 'acme.com', '--mcp', 'https://acme.com/mcp']);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).auth, undefined);
+  assert.match(r.stderr, /No issuer/);
+  assert.equal((await run(['init', '--name', 'Acme', '--domain', 'acme.com', '--mcp', 'https://acme.com/mcp', '--metadata'])).code, 2);
 });
 
 test('cli init --metadata: only the issuer snippet, as JSON', async () => {
   const r = await run(['init', '--name', 'Acme', '--domain', 'acme.com', '--issuer', 'https://auth.acme.com', '--agent', 'https://acme.com/c', '--metadata']);
-  assert.deepEqual(JSON.parse(r.stdout), { issuer: 'https://auth.acme.com', poppy_domains: ['acme.com'] });
+  assert.deepEqual(JSON.parse(r.stdout), { issuer: 'https://auth.acme.com', protected_resources: ['https://acme.com'], grant_types_supported: ['refresh_token', 'authorization_code'] });
 });
 
 test('cli init --out writes the file', async () => {
@@ -113,7 +120,7 @@ test('cli validate: a good file exits 0, a broken one exits 1 with the codes', a
   assert.match(wrongDomain.stdout, /domain_mismatch/);
   const bad = await run(['validate', fixture('poppy-invalid.json'), '--domain', 'acme.com', '--json']);
   assert.equal(bad.code, 1);
-  assert.deepEqual(JSON.parse(bad.stdout).issues, ['missing_auth_issuer']);
+  assert.deepEqual(JSON.parse(bad.stdout).issues, ['invalid_auth_issuer']);
 });
 
 test('cli validate: --domain defaults to the file own domain', async () => {
@@ -125,7 +132,7 @@ test('cli validate: --domain defaults to the file own domain', async () => {
 test('cli validate --metadata-file: checks the issuer metadata too', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'poppy-json-'));
   const meta = join(dir, 'meta.json');
-  await writeFile(meta, JSON.stringify({ issuer: 'https://auth.acme.com', poppy_domains: ['other.com'] }));
+  await writeFile(meta, JSON.stringify({ issuer: 'https://auth.acme.com', protected_resources: ['https://other.com'] }));
   const r = await run(['validate', fixture('poppy-valid.json'), '--domain', 'acme.com', '--metadata-file', meta]);
   assert.equal(r.code, 1);
   assert.match(r.stdout, /domain_not_in_issuer/);

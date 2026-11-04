@@ -1,8 +1,11 @@
 {
-  "protocol_version": "0.1",
+  "protocol_version": "0.3",
   "organization": {
     "name": "Acme",
     "domain": "acme.com"
+  },
+  "auth": {
+    "issuer": "http://auth.acme.com"
   },
   "agent": {
     "protocols": [
@@ -16,8 +19,7 @@
     {
       "type": "mcp",
       "url": "https://mcp.acme.com/mcp",
-      "description": "Orders, returns and saved addresses",
-      "resource": "https://mcp.acme.com/mcp"
+      "description": "Orders, returns and saved addresses"
     },
     {
       "type": "openapi",
