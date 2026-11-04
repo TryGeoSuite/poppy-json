@@ -1,7 +1,7 @@
 // The single-page UI served at `/`, `/en` and `/it`. Bilingual (en/it): the
 // worker picks a locale and calls renderPage(lang, initialUrl); the copy lives
 // in the S dictionary below. Standard and field names (poppy.json, auth.issuer,
-// poppy_domains, OAuth) stay as they are in both languages.
+// protected_resources, OAuth) stay as they are in both languages.
 //
 // It wears GeoSuite's design (theme.js, copied from the hub at
 // tools.trygeosuite.it), so the tool and the hub read as one site.
@@ -59,27 +59,27 @@ const S = {
     placeholder: 'yoursite.com',
     run: 'Check',
     facts: ['Free', 'No sign-up', 'Open source (MIT)'],
-    note: `The <a href="${SPEC_URL}" target="_blank" rel="noopener">Personal Agent Protocol</a> by Sierra and Meta is a draft (0.1, 9 October 2026). Poppy Check is an independent GeoSuite tool, not affiliated with either.`,
+    note: `The <a href="${SPEC_URL}" target="_blank" rel="noopener">Personal Agent Protocol</a> by Sierra and Meta is a draft (0.3, October 2026). Poppy Check is an independent GeoSuite tool, not affiliated with either.`,
     sampleLabel: 'What an agent reads',
     sampleMeta: '/.well-known/poppy.json',
     genTitle: 'Create your poppy.json',
-    genText: 'Fill in what you offer and the page builds the file in your browser: nothing you type is sent anywhere. Then publish it at <code>/.well-known/poppy.json</code> and add two fields to your sign-in server’s OAuth metadata.',
+    genText: 'Fill in what you offer and the page builds the file in your browser: nothing you type is sent anywhere. Then publish it at <code>/.well-known/poppy.json</code>. If agents sign in, the page also builds the two OAuth metadata files that name your sign-in server.',
     f: {
       name: 'Organization name',
       namePh: 'Acme',
       domain: 'Domain',
       domainPh: 'acme.com',
-      issuer: 'Sign-in server (OAuth issuer)',
-      issuerPh: 'https://auth.acme.com',
+      issuer: 'Sign-in server (OAuth issuer), optional',
+      issuerPh: 'https://auth.acme.com, empty if agents stay signed out',
       signIn: 'How agents sign in',
       direct: 'Direct',
       directHint: 'OAuth in the browser',
       device: 'Device',
       deviceHint: 'a code on another screen',
       mediated: 'Mediated',
-      mediatedHint: 'your own sign-in endpoint',
-      mediatedEndpoint: 'Mediated sign-in endpoint',
-      mediatedPh: 'https://auth.acme.com/poppy/sign-in',
+      mediatedHint: 'the agent asks for the customer’s credentials',
+      scopes: 'Scopes mediated sign-in can grant',
+      scopesPh: 'orders:read, addresses',
       channels: 'What agents can use (at least one)',
       agent: 'Conversation endpoint',
       agentPh: 'https://api.acme.com/poppy',
@@ -107,7 +107,7 @@ const S = {
       running: 'Checking…',
       reading: 'Reading {url}…',
       validTitle: 'Valid: a personal agent can use your poppy.json',
-      validSub: 'We read the file, matched its domain and checked the sign-in server’s metadata, as an agent does before it signs in.',
+      validSub: 'We read the file, matched its domain and followed the discovery of the sign-in server, as an agent does before it signs in.',
       invalidTitle: 'Published, but an agent would set it aside',
       invalidSub: 'What to fix:',
       missingTitle: 'No poppy.json on {host} yet',
@@ -127,9 +127,12 @@ const S = {
       download: 'Download',
       fileTitle: 'poppy.json',
       fileMeta: 'Publish at {url}',
+      prTitle: 'Protected resource metadata',
+      prMeta: 'Publish at {url}',
       metaTitle: 'Sign-in server metadata',
       metaMeta: 'Add to {url}',
-      metaNote: 'That metadata must also list {list}. Your server has them already: issuer and poppy_domains are what the Personal Agent Protocol checks.',
+      metaNote: 'That metadata must also list {list}. Your server has them already: issuer, protected_resources and grant_types_supported are what the Personal Agent Protocol checks.',
+      noIssuer: 'No sign-in server: agents use your site signed out. They learn it from a 404 at /.well-known/oauth-protected-resource, so publish nothing there.',
       ready: 'Ready',
     },
   },
@@ -144,27 +147,27 @@ const S = {
     placeholder: 'tuosito.it',
     run: 'Verifica',
     facts: ['Gratis', 'Senza registrazione', 'Open source (MIT)'],
-    note: `Il <a href="${SPEC_URL}" target="_blank" rel="noopener">Personal Agent Protocol</a> di Sierra e Meta è una bozza (0.1, 9 ottobre 2026). Poppy Check è uno strumento indipendente di GeoSuite, non affiliato a nessuna delle due.`,
+    note: `Il <a href="${SPEC_URL}" target="_blank" rel="noopener">Personal Agent Protocol</a> di Sierra e Meta è una bozza (0.3, ottobre 2026). Poppy Check è uno strumento indipendente di GeoSuite, non affiliato a nessuna delle due.`,
     sampleLabel: 'Cosa legge un agente',
     sampleMeta: '/.well-known/poppy.json',
     genTitle: 'Crea il tuo poppy.json',
-    genText: 'Indica cosa offri e la pagina costruisce il file nel tuo browser: quello che scrivi non viene inviato da nessuna parte. Poi pubblicalo su <code>/.well-known/poppy.json</code> e aggiungi due campi ai metadati OAuth del tuo server di login.',
+    genText: 'Indica cosa offri e la pagina costruisce il file nel tuo browser: quello che scrivi non viene inviato da nessuna parte. Poi pubblicalo su <code>/.well-known/poppy.json</code>. Se gli agenti entrano con un account, la pagina costruisce anche i due file di metadati OAuth che indicano il tuo server di login.',
     f: {
       name: 'Nome dell’organizzazione',
       namePh: 'Acme',
       domain: 'Dominio',
       domainPh: 'acme.it',
-      issuer: 'Server di login (issuer OAuth)',
-      issuerPh: 'https://auth.acme.it',
+      issuer: 'Server di login (issuer OAuth), facoltativo',
+      issuerPh: 'https://auth.acme.it, vuoto se gli agenti non entrano con un account',
       signIn: 'Come entrano gli agenti',
       direct: 'Direct',
       directHint: 'OAuth nel browser',
       device: 'Device',
       deviceHint: 'un codice su un altro schermo',
       mediated: 'Mediated',
-      mediatedHint: 'il tuo endpoint di login',
-      mediatedEndpoint: 'Endpoint di login mediated',
-      mediatedPh: 'https://auth.acme.it/poppy/sign-in',
+      mediatedHint: 'l’agente chiede le credenziali del cliente',
+      scopes: 'Scope che l’accesso mediated può concedere',
+      scopesPh: 'orders:read, addresses',
       channels: 'Cosa possono usare gli agenti (almeno uno)',
       agent: 'Endpoint di conversazione',
       agentPh: 'https://api.acme.it/poppy',
@@ -192,7 +195,7 @@ const S = {
       running: 'Verifica in corso…',
       reading: 'Lettura di {url}…',
       validTitle: 'Valido: un agente personale può usare il tuo poppy.json',
-      validSub: 'Abbiamo letto il file, confrontato il dominio e controllato i metadati del server di login, come fa un agente prima di entrare.',
+      validSub: 'Abbiamo letto il file, confrontato il dominio e seguito la ricerca del server di login, come fa un agente prima di entrare.',
       invalidTitle: 'Pubblicato, ma un agente lo scarterebbe',
       invalidSub: 'Cosa correggere:',
       missingTitle: 'Su {host} non c’è ancora un poppy.json',
@@ -212,9 +215,12 @@ const S = {
       download: 'Scarica',
       fileTitle: 'poppy.json',
       fileMeta: 'Da pubblicare su {url}',
+      prTitle: 'Metadati della risorsa protetta',
+      prMeta: 'Da pubblicare su {url}',
       metaTitle: 'Metadati del server di login',
       metaMeta: 'Da aggiungere a {url}',
-      metaNote: 'Quei metadati devono elencare anche {list}. Il tuo server li ha già: issuer e poppy_domains sono i campi che controlla il Personal Agent Protocol.',
+      metaNote: 'Quei metadati devono elencare anche {list}. Il tuo server li ha già: issuer, protected_resources e grant_types_supported sono i campi che controlla il Personal Agent Protocol.',
+      noIssuer: 'Nessun server di login: gli agenti usano il sito senza account. Lo capiscono da un 404 su /.well-known/oauth-protected-resource, quindi lì non va pubblicato niente.',
       ready: 'Pronto',
     },
   },
@@ -432,7 +438,7 @@ ${BASE_CSS}
           <legend>${f.signIn}</legend>
           <div class="opts">${signIn}</div>
         </fieldset>
-        <div class="wide" id="g-mediated-row" hidden>${field('g-mediated', f.mediatedEndpoint, f.mediatedPh, URLISH)}</div>
+        <div class="wide" id="g-scopes-row" hidden>${field('g-scopes', f.scopes, f.scopesPh)}</div>
         <fieldset class="group">
           <legend>${f.channels}</legend>
           <div class="wide">${field('g-agent', f.agent, f.agentPh, URLISH)}</div>
@@ -645,7 +651,7 @@ var generatePoppy = ${generatePoppy.toString()};</script>
         domain: val('g-domain'),
         issuer: val('g-issuer'),
         signIn: signIns(),
-        mediatedEndpoint: val('g-mediated'),
+        scopes: val('g-scopes'),
         agentEndpoint: val('g-agent'),
         apis: [
           { type: 'mcp', url: val('g-mcp'), description: val('g-mcp-desc') },
@@ -661,14 +667,19 @@ var generatePoppy = ${generatePoppy.toString()};</script>
     var where = 'https://' + result.document.organization.domain + '/.well-known/poppy.json';
     var box = $('gen-out'); box.textContent = '';
     box.appendChild(block(T.fileTitle, fill(T.fileMeta, { url: where }), result.json, 'poppy.json'));
-    var m = block(T.metaTitle, fill(T.metaMeta, { url: result.metadata.url }), result.metadata.json, null);
-    m.appendChild(el('p', 'foot', fill(T.metaNote, { list: result.metadata.requiredEndpoints.join(', ') })));
-    box.appendChild(m);
+    if (result.metadata) {
+      box.appendChild(block(T.prTitle, fill(T.prMeta, { url: result.protectedResource.url }), result.protectedResource.json, null));
+      var m = block(T.metaTitle, fill(T.metaMeta, { url: result.metadata.url }), result.metadata.json, null);
+      m.appendChild(el('p', 'foot', fill(T.metaNote, { list: result.metadata.requiredEndpoints.join(', ') })));
+      box.appendChild(m);
+    } else {
+      box.appendChild(el('p', 'foot', T.noIssuer));
+    }
     if (!built) { built = true; if (showErrors) scrollTo(box); }
   }
 
   document.querySelectorAll('input[name=signin]').forEach(function (c) {
-    c.addEventListener('change', function () { $('g-mediated-row').hidden = !document.querySelector('input[name=signin][value=mediated]').checked; });
+    c.addEventListener('change', function () { $('g-scopes-row').hidden = !document.querySelector('input[name=signin][value=mediated]').checked; });
   });
   $('g').addEventListener('submit', function (e) { e.preventDefault(); build(true); });
   // After the first build, the output follows the form as you type.

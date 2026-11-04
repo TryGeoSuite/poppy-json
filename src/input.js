@@ -50,14 +50,13 @@ export function initInput(args) {
   const apis = [];
   for (const url of args.mcp || []) apis.push({ type: 'mcp', url: str(url), description: str(args['mcp-description']) });
   for (const url of args.openapi || []) apis.push({ type: 'openapi', url: str(url), description: str(args['openapi-description']) });
-  const signIn = str(args['sign-in']) ? args['sign-in'].split(',') : str(args.mediated) ? ['direct', 'mediated'] : undefined;
+  const signIn = str(args['sign-in']) ? args['sign-in'].split(',') : undefined;
   return {
     name: str(args.name),
     domain: str(args.domain),
     issuer: str(args.issuer),
     signIn,
     scopes: str(args.scopes) ? args.scopes.split(',') : undefined,
-    mediatedEndpoint: str(args.mediated),
     agentEndpoint: str(args.agent),
     apis,
     browserSessionEndpoint: str(args.browser),

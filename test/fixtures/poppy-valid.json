@@ -1,16 +1,14 @@
 {
-  "protocol_version": "0.1",
+  "protocol_version": "0.3",
   "organization": {
     "name": "Acme",
     "domain": "acme.com"
   },
   "auth": {
     "issuer": "https://auth.acme.com",
-    "direct": {
-      "scopes": ["poppy:read", "poppy:write"]
-    },
-    "device": {
-      "scopes": ["poppy:read", "poppy:write"]
+    "scopes": {
+      "orders:read": "See your orders and returns",
+      "orders:write": "Return or exchange items"
     }
   },
   "agent": {
@@ -25,8 +23,7 @@
     {
       "type": "mcp",
       "url": "https://mcp.acme.com/mcp",
-      "description": "Orders, returns and saved addresses",
-      "resource": "https://mcp.acme.com/mcp"
+      "description": "Orders, returns and saved addresses"
     },
     {
       "type": "openapi",

@@ -30,7 +30,7 @@ test('the inline scripts parse, and the inlined generator works on its own', () 
     const scope = new Function(`${scripts[0]}; return { CFG, generatePoppy };`)();
     assert.equal(scope.CFG.lang, lang);
     const r = scope.generatePoppy({ name: 'Acme', domain: 'acme.com', issuer: 'https://auth.acme.com', agentEndpoint: 'https://acme.com/c' });
-    assert.equal(r.document.protocol_version, '0.1');
+    assert.equal(r.document.protocol_version, '0.3');
   }
 });
 

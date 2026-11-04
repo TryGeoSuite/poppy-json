@@ -65,11 +65,11 @@ Allow: /
 // llmstxt.org format.
 const LLMS = `# Poppy Check
 
-> Free checker and generator for /.well-known/poppy.json, the discovery file of the Personal Agent Protocol by Sierra and Meta (draft 0.1, October 2026). A person's own AI agent reads that file to find a company, sign in for the person over OAuth and act for them. Poppy Check is an independent GeoSuite tool, not affiliated with Sierra or Meta.
+> Free checker and generator for /.well-known/poppy.json, the discovery file of the Personal Agent Protocol by Sierra and Meta (draft 0.3, October 2026). A person's own AI agent reads that file to find a company, sign in for the person over OAuth and act for them. Poppy Check is an independent GeoSuite tool, not affiliated with Sierra or Meta.
 
 ## Tool
 
-- [Poppy Check (English)](${BASE}/en): enter a site, see whether its poppy.json is valid the way an agent checks it (version, domain, channels, OAuth issuer and its RFC 8414 metadata with poppy_domains), and build one in the browser.
+- [Poppy Check (English)](${BASE}/en): enter a site, see whether its poppy.json is valid the way an agent checks it (version, domain, channels, OAuth issuer found through the protected resource metadata, and its RFC 8414 metadata with protected_resources), and build one in the browser.
 - [Poppy Check (Italiano)](${BASE}/it): the same page in Italian.
 - [Check API](${BASE}/api/check?url=example.com): JSON verdict for one site.
 

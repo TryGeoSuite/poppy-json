@@ -27,15 +27,18 @@ Sierra and Meta. It is not affiliated with, or endorsed by, either company.
 ## What is the Personal Agent Protocol?
 
 The [Personal Agent Protocol](https://personalagentprotocol.org/docs/spec)
-("Poppy", draft 0.1 of 9 October 2026, by Sierra and Meta) is how a person's own
+("Poppy", draft 0.3, October 2026, by Sierra and Meta) is how a person's own
 AI agent finds a company, signs in for that person over OAuth and acts for them.
 It all starts from one JSON file the company publishes at
 `https://<domain>/.well-known/poppy.json`.
 
-That file names the organization, its OAuth issuer and the ways an agent can
-work with it: a conversation endpoint, MCP servers or OpenAPI descriptions, and
-a browser session endpoint. The issuer, in turn, must list the domain in the
-`poppy_domains` field of its RFC 8414 metadata, or agents will not trust it.
+That file names the organization and the ways an agent can work with it: a
+conversation endpoint, MCP servers or OpenAPI descriptions, and a browser
+session endpoint. A company whose customers sign in also names its OAuth issuer
+in the domain's protected resource metadata (RFC 9728,
+`/.well-known/oauth-protected-resource`), and the issuer must list the domain
+in the `protected_resources` field of its RFC 8414 metadata, or agents will not
+trust it. A company with no sign-in needs neither: agents use it signed out.
 
 ## Why GeoSuite cares
 
@@ -74,15 +77,16 @@ npx @geosuite/poppy-json check acme.com
 ```
 
 Reads `https://acme.com/.well-known/poppy.json` and checks it the way an agent
-would: protocol version, organization domain, at least one channel, an https
-OAuth issuer, then the issuer's RFC 8414 metadata (`issuer` and
-`poppy_domains`). Exit code `0` when valid, `1` when invalid or not published,
+would: protocol version (`0.3`), organization domain against the host that
+served the file, at least one channel, then the discovery of the sign-in
+server: the domain's protected resource metadata, and the issuer's RFC 8414
+metadata (`issuer`, `protected_resources`, endpoints, `grant_types_supported`). Exit code `0` when valid, `1` when invalid or not published,
 `2` on a usage error, so it fits a CI step after a deploy.
 
 ```text
 poppy.json for acme.com: valid, a personal agent can use it
   https://acme.com/.well-known/poppy.json
-  Protocol version 0.1
+  Protocol version 0.3
   Domain           acme.com
   Sign-in server   https://auth.acme.com
   Sign-in types    direct, device
@@ -113,44 +117,62 @@ npx @geosuite/poppy-json init \
   > poppy.json
 ```
 
-The `poppy.json` goes to stdout (or `--out <file>`); the snippet the OAuth
-issuer must add to its metadata goes to stderr, with the exact URL it must be
-served at. `--metadata` prints only that snippet, as JSON.
+The `poppy.json` goes to stdout (or `--out <file>`). With `--issuer`, the two
+OAuth metadata documents go to stderr, each with the exact URL it must be
+served at: the domain's protected resource metadata and the snippet for the
+issuer's metadata. `--metadata` prints only the issuer's snippet, as JSON.
 
 | Flag | Default | Description |
 | ---- | ------- | ----------- |
 | `--name <text>` | _required_ | `organization.name`, shown to the person. |
-| `--domain <host>` | _required_ | `organization.domain`, the host the file is published on. A leading `www.` is dropped. |
-| `--issuer <https-url>` | _required_ | `auth.issuer`, your OAuth issuer, kept exactly as given. |
-| `--sign-in <list>` | `direct` | Any of `direct`, `device`, `mediated`, comma-separated. |
-| `--scopes <list>` | `poppy:read,poppy:write` | Scopes each sign-in type can grant. |
-| `--mediated <https-url>` | _none_ | Endpoint for mediated sign-in (adds `mediated`, with email and password fields). |
+| `--domain <host>` | _required_ | `organization.domain`, the host that serves the file. Keep `www.` if the site lives there: agents compare it with the host after redirects. |
+| `--issuer <https-url>` | _none_ | `auth.issuer`, your OAuth issuer, kept exactly as given. Leave it out if customers do not sign in through agents. |
+| `--sign-in <list>` | `direct` | Any of `direct`, `device`, `mediated`, comma-separated. Needs `--issuer`. They become the issuer's `grant_types_supported`; `mediated` also adds the `mediated-sign-in` extension, with email and password fields. |
+| `--scopes <list>` | _none_ | The scopes mediated sign-in can grant (required with `mediated`), also listed in `scopes_supported`. |
 | `--agent <https-url>` | _none_ | A `poppy` conversation endpoint (`agent.protocols`). |
 | `--mcp <https-url>` | _none_ | A remote MCP server. Repeatable. `--mcp-description <text>` sets its description. |
 | `--openapi <https-url>` | _none_ | An OpenAPI description. Repeatable. `--openapi-description <text>` sets its description. |
 | `--browser <https-url>` | _none_ | `web.browser_session_endpoint`. |
 | `--out <file>` | stdout | Write `poppy.json` to a file. |
-| `--metadata` | off | Print only the issuer metadata snippet. |
+| `--metadata` | off | Print only the issuer metadata snippet. Needs `--issuer`. |
 
 At least one channel (`--agent`, `--mcp`, `--openapi` or `--browser`) is required.
 
 ### The other half: your OAuth metadata
 
-The generated snippet looks like this, and belongs in the issuer's
+With an issuer, agents find it in two steps. First the domain names it, in its
+[RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) protected resource metadata
+at `https://acme.com/.well-known/oauth-protected-resource`:
+
+```json
+{
+  "resource": "https://acme.com",
+  "authorization_servers": ["https://auth.acme.com"]
+}
+```
+
+Then the issuer confirms the domain, in its
 [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414) metadata at
 `https://auth.acme.com/.well-known/oauth-authorization-server`:
 
 ```json
 {
   "issuer": "https://auth.acme.com",
-  "poppy_domains": ["acme.com"]
+  "protected_resources": ["https://acme.com"],
+  "grant_types_supported": ["refresh_token", "authorization_code"]
 }
 ```
 
-The spec also requires that metadata to list an https `token_endpoint` and
-`revocation_endpoint`, plus `authorization_endpoint` for direct sign-in and
-`device_authorization_endpoint` for device sign-in. Your server has those
-already; `init` reminds you which ones apply, and `check` fails without them.
+`grant_types_supported` must include `refresh_token`, and says which sign-in
+types you offer: `authorization_code` for direct,
+`urn:ietf:params:oauth:grant-type:device_code` for device. The spec also
+requires an https `token_endpoint` and `revocation_endpoint`, plus
+`authorization_endpoint` for direct sign-in and `device_authorization_endpoint`
+for device sign-in. Your server has those already; `init` reminds you which
+ones apply, and `check` fails without them.
+
+Without an issuer, publish nothing at `/.well-known/oauth-protected-resource`:
+the 404 tells agents there is no sign-in.
 
 ## Issue codes
 
@@ -161,23 +183,31 @@ The checker returns the same codes as GeoSuite's audit and the
 | ---- | ------- |
 | `not_an_object` | the file is not a JSON object |
 | `missing_protocol_version` | the protocol version is missing |
-| `unsupported_major_version` | the protocol version is not supported (only `0.x` today) |
+| `unsupported_version` | the protocol version is not `0.3`, the draft agents follow today |
 | `missing_organization` | the organization name or domain is missing |
-| `domain_mismatch` | the declared domain is not the site's |
+| `domain_mismatch` | the declared domain is not the host that serves the file |
 | `invalid_agent_protocol` | a conversation channel has no type or no https address |
 | `invalid_api_entry` | an API has no type, address or description |
 | `invalid_browser_session_endpoint` | the browser session address is not https |
 | `no_channels` | it declares no channel (conversation, API or website) |
-| `missing_auth_issuer` | the sign-in server (`auth.issuer`) is missing |
+| `invalid_auth_issuer` | `auth.issuer` is not an https address |
+| `sign_in_conflict` | sign-in is turned off (`auth.disabled`), but the file still offers it |
 | `not_https` | the file goes through a non-https address |
+| `wrong_final_path` | the redirects end on an address other than `/.well-known/poppy.json` |
+| `protected_resource_unreachable` | the domain's `/.well-known/oauth-protected-resource` does not respond |
+| `protected_resource_invalid` | the domain's `/.well-known/oauth-protected-resource` cannot be read, or names another resource |
+| `missing_auth_issuer` | the domain declares more than one authorization server, and `auth.issuer` does not say which one agents use |
+| `issuer_not_listed` | `auth.issuer` is not among the authorization servers the domain declares |
+| `sign_in_without_issuer` | the file offers sign-in, but the domain names no sign-in server |
 | `issuer_metadata_unreachable` | the sign-in server metadata does not respond |
 | `issuer_metadata_invalid` | the sign-in server metadata cannot be read |
 | `issuer_mismatch` | the sign-in server declares a different issuer |
-| `domain_not_in_issuer` | the sign-in server does not list this domain in `poppy_domains` |
+| `domain_not_in_issuer` | the sign-in server does not list this domain in `protected_resources` |
 | `missing_token_endpoint` | the sign-in server does not say where agents get their tokens (an https `token_endpoint`) |
 | `missing_revocation_endpoint` | the sign-in server does not say where access is revoked (an https `revocation_endpoint`) |
-| `missing_authorization_endpoint` | direct sign-in is declared, but the sign-in server has no https `authorization_endpoint` |
-| `missing_device_authorization_endpoint` | device sign-in is declared, but the sign-in server has no https `device_authorization_endpoint` |
+| `invalid_grant_types` | the sign-in server does not list `grant_types_supported` with `refresh_token` |
+| `missing_authorization_endpoint` | the sign-in server offers `authorization_code`, but has no https `authorization_endpoint` |
+| `missing_device_authorization_endpoint` | the sign-in server offers the device code grant, but has no https `device_authorization_endpoint` |
 
 A missing file is not an issue: `check` reports it as "not published".
 
@@ -188,6 +218,7 @@ import {
   probePoppy,
   validatePoppyDocument,
   checkIssuerMetadata,
+  resolveIssuer,
   issuerMetadataUrl,
   generatePoppy,
   explainIssue,
@@ -196,22 +227,25 @@ import {
 // Live check, the way an agent does it. Never throws.
 const result = await probePoppy('acme.com');
 // { present, valid, url, status, issues, protocolVersion, organizationDomain,
-//   issuer, signInTypes, apiTypes, hasConversation, hasBrowserSession }
+//   issuer, signInTypes, signInDisabled, signedInAccess, apiTypes,
+//   hasConversation, hasBrowserSession }
 
 // Offline shape checks for a document and the host it will be served on.
 const { valid, issues } = validatePoppyDocument(json, 'acme.com');
 issues.map((code) => explainIssue(code, 'en'));
 
-// Build a document and the issuer snippet.
-const { json: text, metadata } = generatePoppy({
+// Build a document and the two OAuth metadata documents.
+const { json: text, protectedResource, metadata } = generatePoppy({
   name: 'Acme',
   domain: 'acme.com',
   issuer: 'https://auth.acme.com',
   signIn: ['direct'],
   apis: [{ type: 'mcp', url: 'https://acme.com/mcp', description: 'Orders and returns' }],
 });
-// metadata.url  -> https://auth.acme.com/.well-known/oauth-authorization-server
-// metadata.json -> { "issuer": ..., "poppy_domains": ["acme.com"] }
+// protectedResource.url -> https://acme.com/.well-known/oauth-protected-resource
+// metadata.url          -> https://auth.acme.com/.well-known/oauth-authorization-server
+// metadata.json         -> { "issuer": ..., "protected_resources": ["https://acme.com"], ... }
+// Both are null without an issuer.
 ```
 
 `generatePoppy` throws an `Error` with a `code` (`missing_name`,
@@ -222,12 +256,10 @@ Its output always passes `validatePoppyDocument` for the same domain.
 
 - **Running the protocol.** This tool checks and writes the discovery file; it
   does not sign in, start conversations or call your APIs.
-- **Every redirect hop.** The spec wants every redirect on the way to the file
-  to be https. `fetch` only exposes where the chain ends, so the checker flags
-  a file that ends on http (`not_https`), not each hop.
-- **The contents of sign-in types.** The checker reports which of `direct`,
-  `device` and `mediated` are declared, like GeoSuite's audit, but does not yet
-  validate their scopes, mediated fields or the required OAuth endpoints.
+- **Scopes and extensions.** The checker reports which of `direct`, `device`
+  and `mediated` a company offers, like GeoSuite's audit, but does not check
+  scope descriptions, `scope_hints`, the mediated sign-in fields or other
+  extensions.
 
 ## Contributing
 
