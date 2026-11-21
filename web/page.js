@@ -13,7 +13,7 @@
 //     is inlined below (generatePoppy is self-contained for that), so the page
 //     and the CLI build the very same file. Nothing typed in it leaves the page.
 
-import { FONTS, BASE_CSS, ENGINES } from './theme.js';
+import { FONTS, BASE_CSS, ENGINES, analytics, withSiteUtm } from './theme.js';
 import { generatePoppy } from '../src/generate.js';
 import { SPEC_URL } from '../src/check.js';
 import { ISSUE_TEXT, INPUT_ERROR_TEXT } from '../src/messages.js';
@@ -23,6 +23,11 @@ const HUB = 'https://tools.trygeosuite.it';
 const GH = 'https://github.com/TryGeoSuite/poppy-json';
 const NPM = 'https://www.npmjs.com/package/@geosuite/poppy-json';
 const ANALYSIS = 'https://trygeosuite.it/analisi-gratuita?utm_source=geosuite-open&utm_medium=tool&utm_campaign=poppy-check';
+// The tool id in the usage statistics (theme.js analytics).
+const TOOL = 'poppy_json';
+// The campaign name the existing signup links already use: one name per tool
+// keeps a per-campaign report on one row.
+const CAMPAIGN = 'poppy-check';
 const CMDS = [
   'npx @geosuite/poppy-json check yoursite.com',
   'npx @geosuite/poppy-json validate poppy.json --domain yoursite.com',
@@ -102,7 +107,7 @@ const S = {
     ctaTitle: 'Agents can find you. Do AI assistants recommend you?',
     ctaText: 'A poppy.json lets a customer’s own agent act for them. First, someone has to choose you: GeoSuite asks ChatGPT, Gemini and Perplexity the questions your customers really ask, and tells you whether you are recommended, who wins instead and what to fix first. The report arrives by email.',
     ctaButton: 'Get the free analysis',
-    footer: `Open source (MIT) by <a href="https://github.com/matte97p">Matteo Perino</a>, a <a href="https://trygeosuite.it">GeoSuite</a> tool for the Personal Agent Protocol by Sierra and Meta, not affiliated with them. Code on <a href="${GH}">GitHub</a>, package on <a href="${NPM}">npm</a>. We read only the public /.well-known files of the site you enter.`,
+    footer: `Open source (MIT) by <a href="https://github.com/matte97p">Matteo Perino</a>, a <a href="https://trygeosuite.it">GeoSuite</a> tool for the Personal Agent Protocol by Sierra and Meta, not affiliated with them. Code on <a href="${GH}">GitHub</a>, package on <a href="${NPM}">npm</a>. We read only the public /.well-known files of the site you enter. Anonymous usage statistics with PostHog (EU), without cookies: of what you type, they include only the site’s hostname.`,
     js: {
       running: 'Checking…',
       reading: 'Reading {url}…',
@@ -190,7 +195,7 @@ const S = {
     ctaTitle: 'Gli agenti ti trovano. Le AI ti consigliano?',
     ctaText: 'Un poppy.json permette all’agente di un cliente di agire per lui. Prima, però, qualcuno deve sceglierti: GeoSuite fa a ChatGPT, Gemini e Perplexity le domande che i tuoi clienti fanno davvero, e ti dice se ti consigliano, chi vince al posto tuo e cosa correggere per primo. Il report arriva via mail.',
     ctaButton: 'Richiedi l’analisi gratuita',
-    footer: `Open source (MIT) di <a href="https://github.com/matte97p">Matteo Perino</a>, uno strumento di <a href="https://trygeosuite.it">GeoSuite</a> per il Personal Agent Protocol di Sierra e Meta, non affiliato a loro. Codice su <a href="${GH}">GitHub</a>, pacchetto su <a href="${NPM}">npm</a>. Leggiamo solo i file pubblici in /.well-known del sito che inserisci.`,
+    footer: `Open source (MIT) di <a href="https://github.com/matte97p">Matteo Perino</a>, uno strumento di <a href="https://trygeosuite.it">GeoSuite</a> per il Personal Agent Protocol di Sierra e Meta, non affiliato a loro. Codice su <a href="${GH}">GitHub</a>, pacchetto su <a href="${NPM}">npm</a>. Leggiamo solo i file pubblici in /.well-known del sito che inserisci. Statistiche d’uso anonime con PostHog (UE), senza cookie: di quello che scrivi includono solo il nome del sito.`,
     js: {
       running: 'Verifica in corso…',
       reading: 'Lettura di {url}…',
@@ -275,7 +280,7 @@ export function renderPage(lang, initialUrl = '') {
     copyLabel: t.copyLabel,
   };
 
-  return `<!doctype html>
+  return withSiteUtm(`<!doctype html>
 <html lang="${lang}">
 <head>
 <meta charset="utf-8">
@@ -302,6 +307,7 @@ export function renderPage(lang, initialUrl = '') {
 <meta name="twitter:description" content="${esc(t.desc)}">
 <meta name="twitter:image" content="${BASE}/og.png">
 ${FONTS}
+${analytics(TOOL)}
 <script type="application/ld+json">${jsonLd(t, lang)}</script>
 <style>
 ${BASE_CSS}
@@ -472,7 +478,7 @@ ${BASE_CSS}
         <p>${t.ctaText}</p>
         ${ENGINES}
       </div>
-      <a class="primary" href="${ANALYSIS}" target="_blank" rel="noopener">${t.ctaButton}</a>
+      <a class="primary" href="${ANALYSIS}" target="_blank" rel="noopener" data-cta="analysis">${t.ctaButton}</a>
     </section>
   </main>
 
@@ -488,17 +494,27 @@ var generatePoppy = ${generatePoppy.toString()};</script>
 (function () {
   var T = CFG.t, ICONS = CFG.icons;
   var $ = function (id) { return document.getElementById(id); };
-  var out = $('out'), input = $('u'), btn = $('go'), run = 0;
+  var out = $('out'), input = $('u'), btn = $('go'), run = 0, lastHost = '';
+
+  // Usage statistics (theme.js analytics): never throws, never sends the URL
+  // or what is typed in the generator, only hostnames and codes.
+  function track(event, props) { try { if (window.gsTrack) window.gsTrack(event, props); } catch (e) {} }
+  function hostOf(url) { return window.gsTrack ? window.gsTrack.host(url) : ''; }
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function icon(kind) { var s = document.createElement('span'); s.innerHTML = ICONS[kind]; return s.firstChild; }
   function fill(s, vars) { return String(s).replace(/\\{(\\w+)\\}/g, function (m, k) { return vars[k] != null ? vars[k] : m; }); }
   function flash(b, text, back) { b.textContent = text; setTimeout(function () { b.textContent = back; }, 1500); }
-  function copy(text, b) {
+  // what: which text the button copies, for the usage statistics.
+  function copy(text, b, what) {
     if (!navigator.clipboard) return;
-    navigator.clipboard.writeText(text).then(function () { flash(b, T.copied, T.copy); }).catch(function () {});
+    navigator.clipboard.writeText(text).then(function () {
+      track('tool_result_copied', { content: what });
+      flash(b, T.copied, T.copy);
+    }).catch(function () {});
   }
   function download(text, name) {
+    track('tool_file_downloaded', { file: name });
     var blob = new Blob([text], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = name;
@@ -578,7 +594,10 @@ var generatePoppy = ${generatePoppy.toString()};</script>
     if (navigator.clipboard) {
       var share = el('button', 'ghost', T.share); share.type = 'button';
       share.addEventListener('click', function () {
-        navigator.clipboard.writeText(location.href).then(function () { flash(share, T.linkCopied, T.share); }).catch(function () {});
+        navigator.clipboard.writeText(location.href).then(function () {
+          track('tool_result_shared', { mode: 'check', input_host: lastHost, method: 'copy_link' });
+          flash(share, T.linkCopied, T.share);
+        }).catch(function () {});
       });
       actions.appendChild(share);
     }
@@ -587,22 +606,35 @@ var generatePoppy = ${generatePoppy.toString()};</script>
     out.appendChild(panel);
   }
 
-  function check(value) {
+  // source: 'form' (submitted) or 'shared_link' (a ?url= link re-runs it).
+  function check(value, source) {
     value = value.trim();
     $('err').textContent = '';
     if (!value) { $('err').textContent = T.invalidUrl; return; }
-    var me = ++run;
+    var me = ++run, t0 = Date.now(), inputHost = hostOf(value);
+    lastHost = inputHost;
+    track('tool_run_started', { mode: 'check', input_host: inputHost, source: source });
     btn.disabled = true; btn.textContent = T.running;
     out.innerHTML = '<div class="panel loading"><span class="spinner" aria-hidden="true"></span><span></span></div>';
     out.querySelector('.loading span:last-child').textContent = fill(T.reading, { url: value });
     fetch('/api/check?url=' + encodeURIComponent(value))
       .then(function (res) { return res.json(); })
       .then(function (r) {
+        if (r.error) track('tool_run_failed', { mode: 'check', input_host: inputHost, error: r.error, duration_ms: Date.now() - t0 });
+        else {
+          track('tool_run_completed', {
+            mode: 'check', input_host: inputHost, duration_ms: Date.now() - t0,
+            valid: !!r.valid, present: !!r.present, issues: r.issues || [], status: r.status || 0,
+          });
+        }
         if (me !== run) return;
         if (r.error === 'invalid_url') { out.textContent = ''; $('err').textContent = T.invalidUrl; return; }
         render(r);
       })
-      .catch(function () { if (me === run) { out.textContent = ''; $('err').textContent = T.networkError; } })
+      .catch(function () {
+        track('tool_run_failed', { mode: 'check', input_host: inputHost, error: 'network', duration_ms: Date.now() - t0 });
+        if (me === run) { out.textContent = ''; $('err').textContent = T.networkError; }
+      })
       .then(function () { if (me === run) { btn.disabled = false; btn.textContent = ${js(t.run)}; } });
   }
 
@@ -610,7 +642,7 @@ var generatePoppy = ${generatePoppy.toString()};</script>
     e.preventDefault();
     var v = input.value.trim();
     if (v) history.replaceState(null, '', '?url=' + encodeURIComponent(v));
-    check(v);
+    check(v, 'form');
   });
 
   // ---- the generator (runs here, in the browser) ----
@@ -619,7 +651,8 @@ var generatePoppy = ${generatePoppy.toString()};</script>
   function signIns() {
     return Array.prototype.slice.call(document.querySelectorAll('input[name=signin]:checked')).map(function (c) { return c.value; });
   }
-  function block(title, sub, text, file) {
+  // what: the block's name in the usage statistics.
+  function block(title, sub, text, file, what) {
     var b = el('div', 'block');
     var meta = el('div', 'meta');
     var st = el('span', 'state'); st.appendChild(icon('ok')); st.appendChild(document.createTextNode(T.ready));
@@ -629,7 +662,7 @@ var generatePoppy = ${generatePoppy.toString()};</script>
     var actions = el('span', 'actions');
     if (navigator.clipboard) {
       var c = el('button', 'ghost', T.copy); c.type = 'button';
-      c.addEventListener('click', function () { copy(text, c); });
+      c.addEventListener('click', function () { copy(text, c, what); });
       actions.appendChild(c);
     }
     if (file) {
@@ -643,8 +676,11 @@ var generatePoppy = ${generatePoppy.toString()};</script>
     return b;
   }
 
+  // showErrors: true on submit, false while the output follows the form; only
+  // a submit counts in the usage statistics.
   function build(showErrors) {
-    var result;
+    var result, t0 = Date.now();
+    if (showErrors) track('tool_run_started', { mode: 'generate', input_host: hostOf(val('g-domain')), source: 'form' });
     try {
       result = generatePoppy({
         name: val('g-name'),
@@ -660,20 +696,29 @@ var generatePoppy = ${generatePoppy.toString()};</script>
         browserSessionEndpoint: val('g-browser'),
       });
     } catch (e) {
-      if (showErrors) $('g-err').textContent = CFG.inputErrors[e.code] || e.message;
+      if (showErrors) {
+        track('tool_run_failed', { mode: 'generate', input_host: hostOf(val('g-domain')), error: e.code || 'generic', duration_ms: Date.now() - t0 });
+        $('g-err').textContent = CFG.inputErrors[e.code] || e.message;
+      }
       return;
     }
     $('g-err').textContent = '';
     var where = 'https://' + result.document.organization.domain + '/.well-known/poppy.json';
     var box = $('gen-out'); box.textContent = '';
-    box.appendChild(block(T.fileTitle, fill(T.fileMeta, { url: where }), result.json, 'poppy.json'));
+    box.appendChild(block(T.fileTitle, fill(T.fileMeta, { url: where }), result.json, 'poppy.json', 'poppy_json'));
     if (result.metadata) {
-      box.appendChild(block(T.prTitle, fill(T.prMeta, { url: result.protectedResource.url }), result.protectedResource.json, null));
-      var m = block(T.metaTitle, fill(T.metaMeta, { url: result.metadata.url }), result.metadata.json, null);
+      box.appendChild(block(T.prTitle, fill(T.prMeta, { url: result.protectedResource.url }), result.protectedResource.json, null, 'protected_resource'));
+      var m = block(T.metaTitle, fill(T.metaMeta, { url: result.metadata.url }), result.metadata.json, null, 'issuer_metadata');
       m.appendChild(el('p', 'foot', fill(T.metaNote, { list: result.metadata.requiredEndpoints.join(', ') })));
       box.appendChild(m);
     } else {
       box.appendChild(el('p', 'foot', T.noIssuer));
+    }
+    if (showErrors) {
+      track('tool_run_completed', {
+        mode: 'generate', input_host: bareHost(result.document.organization.domain), duration_ms: Date.now() - t0,
+        sign_in: signIns(), with_issuer: !!result.metadata,
+      });
     }
     if (!built) { built = true; if (showErrors) scrollTo(box); }
   }
@@ -690,14 +735,14 @@ var generatePoppy = ${generatePoppy.toString()};</script>
     document.querySelectorAll('.cmd').forEach(function (box) {
       var cmd = box.querySelector('code').textContent.trim();
       var b = el('button', 'ghost', T.copy); b.type = 'button'; b.setAttribute('aria-label', CFG.copyLabel);
-      b.addEventListener('click', function () { copy(cmd, b); });
+      b.addEventListener('click', function () { copy(cmd, b, 'cli_command'); });
       box.appendChild(b);
     });
   }
 
-  if (input.value) check(input.value);
+  if (input.value) check(input.value, 'shared_link');
 })();
 </script>
 </body>
-</html>`;
+</html>`, CAMPAIGN);
 }

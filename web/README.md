@@ -16,9 +16,11 @@ would (same `probePoppy` as the CLI), or fill in a form and it builds the file.
 The generator runs in the browser: `page.js` inlines the source of
 `generatePoppy` from `../src/generate.js`, so the Worker never sees what people
 type in the form. The check fetches only the site's `poppy.json` and its OAuth
-issuer's metadata. No database, no cookies, no client tracking: one Analytics
-Engine data point per check (checked host and verdict, nothing about the
-visitor), skipped when the `AE` binding is absent.
+issuer's metadata. No database, no cookies: one Analytics Engine data point
+per check (checked host and verdict, nothing about the visitor), skipped when
+the `AE` binding is absent, and anonymous usage statistics with PostHog (EU) in
+cookieless mode (`analytics()` in `theme.js`): the tool, the hostname of the
+site and the outcome, never the full URL nor the generator's fields.
 
 ## Run locally
 

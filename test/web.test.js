@@ -6,7 +6,8 @@ import { renderPage } from '../web/page.js';
 
 const LANGS = ['en', 'it'];
 
-const inlineScripts = (html) => [...html.matchAll(/<script(?![^>]*ld\+json)(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+// The page's own scripts; the usage statistics loader (theme.js) is tested apart.
+const inlineScripts = (html) => [...html.matchAll(/<script(?![^>]*ld\+json)(?![^>]*src=)(?![^>]*gs-analytics)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 
 test('both languages name the standard and the file in title, description and H1', () => {
   for (const lang of LANGS) {
@@ -31,6 +32,18 @@ test('the inline scripts parse, and the inlined generator works on its own', () 
     assert.equal(scope.CFG.lang, lang);
     const r = scope.generatePoppy({ name: 'Acme', domain: 'acme.com', issuer: 'https://auth.acme.com', agentEndpoint: 'https://acme.com/c' });
     assert.equal(r.document.protocol_version, '0.3');
+  }
+});
+
+test('the usage statistics load cookieless, and every link to trygeosuite.it carries utm', () => {
+  for (const lang of LANGS) {
+    const html = renderPage(lang);
+    const ph = html.match(/<script id="gs-analytics">([\s\S]*?)<\/script>/);
+    assert.ok(ph, `${lang}: analytics script`);
+    new Function(ph[1]);
+    assert.match(ph[1], /cookieless_mode: 'always'/);
+    assert.match(ph[1], /"poppy_json"/);
+    for (const m of html.matchAll(/href="(https:\/\/trygeosuite\.it[^"]*)"/g)) assert.match(m[1], /utm_source=geosuite-open/, m[1]);
   }
 });
 
